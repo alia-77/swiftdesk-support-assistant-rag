@@ -1,0 +1,26 @@
+responsible_ai:
+  accuracy:
+    enabled: true
+    rule: "Support drafts should be based on the customer's issue and retrieved support information when RAG is enabled."
+    action: "Flag responses that appear unsupported or uncertain for human review."
+
+  respectful_language:
+    enabled: true
+    rule: "Responses must use clear, professional, and respectful language."
+    action: "Rewrite or reject responses containing inappropriate or disrespectful language."
+
+  risky_cases:
+    enabled: true
+    rule: "Potentially risky, sensitive, or high-impact issues must be escalated to a human support agent."
+    action: "Do not provide an autonomous resolution; require human review and escalation."
+
+  privacy:
+    enabled: true
+    rule: "Do not expose unnecessary personal or sensitive information from support tickets."
+    action: "Avoid reproducing sensitive information unless it is necessary for the support response."
+
+  human_review:
+    enabled: true
+    mandatory: true
+    rule: "Every generated support draft must be reviewed by a human agent before being sent to a customer."
+
