@@ -95,10 +95,22 @@ def load_existing_results():
 
 
 def save_results(results):
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
-        json.dump(results, file, indent=2, ensure_ascii=False)
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8",
+    ) as file:
+        json.dump(
+            results,
+            file,
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 def main():
@@ -107,59 +119,107 @@ def main():
 
     results = load_existing_results()
 
-    completed_task_ids = {
-        result["task_id"]
+    result_by_task = {
+        result["task_id"]: result
         for result in results
     }
 
-    print(f"Already completed: {len(completed_task_ids)} task(s)")
+    print(
+        f"Existing results found: "
+        f"{len(result_by_task)} task(s)"
+    )
 
     for example in test_examples:
         task_id = example["task_id"]
-
-        if task_id in completed_task_ids:
-            print(f"Skipping task {task_id} - already completed.")
-            continue
-
         customer_issue = example["customer_issue"]
 
-        print(f"Processing task {task_id}...")
-
-        zero_shot = generate_response(
-            zero_shot_prompt(customer_issue)
-        )
-        time.sleep(13)
-
-        few_shot_examples = test_examples[:2]
-
-        few_shot = generate_response(
-            few_shot_prompt(customer_issue, few_shot_examples)
-        )
-        time.sleep(13)
-
-        reasoned = generate_response(
-            reasoned_prompt(customer_issue)
-        )
-        time.sleep(13)
-
-        results.append(
-            {
+        if task_id not in result_by_task:
+            result_by_task[task_id] = {
                 "task_id": task_id,
                 "customer_issue": customer_issue,
                 "reference_reply": example["reference_reply"],
-                "zero_shot": zero_shot,
-                "few_shot": few_shot,
-                "reasoned": reasoned,
             }
+
+        result = result_by_task[task_id]
+
+        print(f"\nProcessing task {task_id}...")
+
+        if "zero_shot" not in result:
+            print("  Generating zero-shot response...")
+
+            result["zero_shot"] = generate_response(
+                zero_shot_prompt(customer_issue)
+            )
+
+            save_results(list(result_by_task.values()))
+
+            print("  Zero-shot response saved.")
+            time.sleep(13)
+        else:
+            print("  Zero-shot already exists. Skipping.")
+
+        if "few_shot" not in result:
+            print("  Generating few-shot response...")
+
+            few_shot_examples = test_examples[:2]
+
+            result["few_shot"] = generate_response(
+                few_shot_prompt(
+                    customer_issue,
+                    few_shot_examples,
+                )
+            )
+
+            save_results(list(result_by_task.values()))
+
+            print("  Few-shot response saved.")
+            time.sleep(13)
+        else:
+            print("  Few-shot already exists. Skipping.")
+
+        if "reasoned" not in result:
+            print("  Generating reasoned response...")
+
+            result["reasoned"] = generate_response(
+                reasoned_prompt(customer_issue)
+            )
+
+            save_results(list(result_by_task.values()))
+
+            print("  Reasoned response saved.")
+            time.sleep(13)
+        else:
+            print("  Reasoned response already exists. Skipping.")
+
+        print(f"Task {task_id} completed.")
+
+    final_results = [
+        result_by_task[example["task_id"]]
+        for example in test_examples
+    ]
+
+    save_results(final_results)
+
+    completed_tasks = sum(
+        1
+        for result in final_results
+        if all(
+            key in result
+            for key in [
+                "zero_shot",
+                "few_shot",
+                "reasoned",
+            ]
         )
-
-        save_results(results)
-
-        print(f"Task {task_id} completed and saved.")
+    )
 
     print(f"\nSaved results to {OUTPUT_FILE}")
-    print(f"Number of completed test examples: {len(results)}")
+    print(
+        f"Completed test examples: "
+        f"{completed_tasks}/{len(test_examples)}"
+    )
 
 
 if __name__ == "__main__":
     main()
+
