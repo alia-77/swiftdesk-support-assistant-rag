@@ -7,7 +7,6 @@ from google import genai
 from langchain_chroma import Chroma
 from langchain_core.embeddings import Embeddings
 
-
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
@@ -15,10 +14,10 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
     raise ValueError("GEMINI_API_KEY is not set in the .env file")
 
-
 CHROMA_DIRECTORY = Path("chroma_db")
 COLLECTION_NAME = "support_conversations"
 EMBEDDING_MODEL = "gemini-embedding-2"
+GENERATION_MODEL = "gemini-3.6-flash"
 
 
 class GeminiEmbeddings(Embeddings):
@@ -99,6 +98,61 @@ def build_rag_context(customer_issue, k=3):
     return "\n\n---\n\n".join(context_parts)
 
 
+def build_rag_prompt(customer_issue, rag_context):
+    return f"""
+You are an IT support assistant responsible for drafting
+professional customer support responses.
+
+Use the retrieved support examples below as guidance.
+
+Important instructions:
+- Base the response primarily on the customer's current issue.
+- Use retrieved examples only when they are relevant.
+- Do not invent company policies, services, contact information,
+  or technical details that are not supported by the provided context.
+- Do not copy an example blindly if it does not match the customer's issue.
+- Write a short, clear, polite, professional support response.
+- Do not expose your reasoning process.
+- The response is a draft and must be reviewed by a human support agent
+  before being sent to the customer.
+
+Retrieved support examples:
+
+{rag_context}
+
+Current customer issue:
+
+{customer_issue}
+
+Draft support reply:
+"""
+
+
+def generate_rag_response(customer_issue, k=3):
+    rag_context = build_rag_context(
+        customer_issue,
+        k=k,
+    )
+
+    client = genai.Client(api_key=API_KEY)
+
+    prompt = build_rag_prompt(
+        customer_issue,
+        rag_context,
+    )
+
+    response = client.models.generate_content(
+        model=GENERATION_MODEL,
+        contents=prompt,
+    )
+
+    return {
+        "customer_issue": customer_issue,
+        "retrieved_context": rag_context,
+        "draft_response": response.text,
+    }
+
+
 if __name__ == "__main__":
     print("rag_chain.py loaded successfully.")
-
+    
