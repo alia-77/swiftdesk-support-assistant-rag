@@ -6,6 +6,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google import genai
 
+from prompts import rag_prompt
+from rag_chain import retrieve_similar_tickets
+
 
 load_dotenv()
 
@@ -113,6 +116,22 @@ def save_results(results):
         )
 
 
+def generate_rag_response(customer_issue):
+    retrieved_sources = retrieve_similar_tickets(
+        customer_issue,
+        k=3,
+    )
+
+    prompt = rag_prompt(
+        customer_issue,
+        retrieved_sources,
+    )
+
+    response = generate_response(prompt)
+
+    return response, retrieved_sources
+
+
 def main():
     with open(INPUT_FILE, "r", encoding="utf-8") as file:
         test_examples = json.load(file)
@@ -142,56 +161,48 @@ def main():
 
         result = result_by_task[task_id]
 
-        print(f"\nProcessing task {task_id}...")
+        print(f"\nChecking task {task_id}...")
 
-        if "zero_shot" not in result:
-            print("  Generating zero-shot response...")
-
-            result["zero_shot"] = generate_response(
-                zero_shot_prompt(customer_issue)
-            )
-
-            save_results(list(result_by_task.values()))
-
-            print("  Zero-shot response saved.")
-            time.sleep(13)
-        else:
+        if "zero_shot" in result:
             print("  Zero-shot already exists. Skipping.")
-
-        if "few_shot" not in result:
-            print("  Generating few-shot response...")
-
-            few_shot_examples = test_examples[:2]
-
-            result["few_shot"] = generate_response(
-                few_shot_prompt(
-                    customer_issue,
-                    few_shot_examples,
-                )
-            )
-
-            save_results(list(result_by_task.values()))
-
-            print("  Few-shot response saved.")
-            time.sleep(13)
         else:
+            print("  Zero-shot is missing. Skipping baseline generation.")
+
+        if "few_shot" in result:
             print("  Few-shot already exists. Skipping.")
-
-        if "reasoned" not in result:
-            print("  Generating reasoned response...")
-
-            result["reasoned"] = generate_response(
-                reasoned_prompt(customer_issue)
-            )
-
-            save_results(list(result_by_task.values()))
-
-            print("  Reasoned response saved.")
-            time.sleep(13)
         else:
-            print("  Reasoned response already exists. Skipping.")
+            print("  Few-shot is missing. Skipping baseline generation.")
 
-        print(f"Task {task_id} completed.")
+        if "reasoned" in result:
+            print("  Reasoned already exists. Skipping.")
+        else:
+            print("  Reasoned is missing. Skipping baseline generation.")
+
+        if "rag" in result:
+            print("  RAG already exists. Skipping.")
+            continue
+
+        print("  Generating RAG response...")
+
+        rag_response, retrieved_sources = generate_rag_response(
+            customer_issue
+        )
+
+        result["rag"] = rag_response
+        result["retrieved_sources"] = retrieved_sources
+
+        save_results(
+            [
+                result_by_task[example["task_id"]]
+                for example in test_examples
+            ]
+        )
+
+        print("  RAG response saved.")
+
+        time.sleep(13)
+
+        print(f"Task {task_id} RAG processing completed.")
 
     final_results = [
         result_by_task[example["task_id"]]
@@ -200,26 +211,18 @@ def main():
 
     save_results(final_results)
 
-    completed_tasks = sum(
+    completed_rag = sum(
         1
         for result in final_results
-        if all(
-            key in result
-            for key in [
-                "zero_shot",
-                "few_shot",
-                "reasoned",
-            ]
-        )
+        if "rag" in result
     )
 
     print(f"\nSaved results to {OUTPUT_FILE}")
     print(
-        f"Completed test examples: "
-        f"{completed_tasks}/{len(test_examples)}"
+        f"Completed RAG examples: "
+        f"{completed_rag}/{len(test_examples)}"
     )
 
 
 if __name__ == "__main__":
     main()
-

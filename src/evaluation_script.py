@@ -33,6 +33,7 @@ def main():
         "zero_shot",
         "few_shot",
         "reasoned",
+        "rag",
     ]
 
     evaluation_results = {
