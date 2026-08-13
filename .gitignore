@@ -9,11 +9,8 @@ __pycache__/
 
 # Data
 data/raw/
-data/support_conversations.csv
-data/test_subset.json
 
 # Generated outputs
-outputs/
 chroma_db/
 
 # IDE
